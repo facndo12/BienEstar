@@ -45,7 +45,7 @@ createServer(async (request, response) => {
     if (!fileStat.isFile()) throw new Error('Not a file');
     response.writeHead(200, {
       'Content-Type': types[extname(file)],
-      'Cache-Control': file.endsWith('index.html') ? 'no-cache' : 'public, max-age=3600',
+      'Cache-Control': pathname.startsWith('/public/images/') ? 'public, max-age=3600' : 'no-cache',
     });
     response.end(request.method === 'HEAD' ? undefined : await readFile(file));
   } catch {
