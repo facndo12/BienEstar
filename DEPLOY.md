@@ -4,7 +4,7 @@ Pasos para un servidor Ubuntu/Debian con acceso SSH y `sudo`. El servidor debe t
 
 ## 1. DNS
 
-En la zona DNS de `consultoriadigital.io`, crear un registro **A** con nombre `bienestar`, valor `2.57.91.91` (la IP que aparece en la captura del panel) y TTL `300`. Confirmar que esa IP es la del servidor antes de guardarlo. Esperar a que `dig +short bienestar.consultoriadigital.io` devuelva esa dirección.
+En la zona DNS de `consultoriadigital.io`, crear un registro **A** con nombre `bienestar`, valor `72.60.15.125` y TTL `300`. Esta dirección coincide con la IPv4 del VPS mostrada en el panel de Hostinger. Pulsar **Agregar registro** y esperar a que `dig +short bienestar.consultoriadigital.io` devuelva esa dirección. Esta pantalla configura el dominio; los archivos de la web se instalan en el VPS en el paso siguiente.
 
 ## 2. Código y PM2
 
