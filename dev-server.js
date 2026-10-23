@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = Number(process.env.PORT || 5173);
+const host = process.env.HOST || '127.0.0.1';
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT');
 const types = {
   '.html': 'text/html; charset=utf-8',
@@ -51,6 +52,6 @@ createServer(async (request, response) => {
   } catch {
     response.writeHead(404).end('Not found');
   }
-}).listen(port, '127.0.0.1', () => {
-  console.log(`BienEstar: http://localhost:${port}/`);
+}).listen(port, host, () => {
+  console.log(`BienEstar: http://${host}:${port}/`);
 });

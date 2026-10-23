@@ -1,0 +1,14 @@
+http:
+  routers:
+    bienestar-landing:
+      rule: "Host(`bienestar.consultoriadigital.io`)"
+      entryPoints:
+        - websecure
+      service: bienestar-landing
+      tls:
+        certResolver: mytlschallenge
+  services:
+    bienestar-landing:
+      loadBalancer:
+        servers:
+          - url: "http://172.18.0.1:3104"

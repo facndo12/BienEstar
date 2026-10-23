@@ -1,64 +1,84 @@
-# Despliegue provisorio: bienestar.consultoriadigital.io
+# BienEstar en el VPS srv1224751
 
-Pasos para un servidor Ubuntu/Debian con acceso SSH y `sudo`. El servidor debe tener Node.js, npm, Git y Nginx. Esta web no necesita instalar dependencias del proyecto.
+Esta guía corresponde al VPS de Hostinger cuya IPv4 es `72.60.15.125`. Sus webs existentes usan PM2 y Docker; Traefik (`n8n-traefik-1`) recibe HTTPS en el puerto 443. No instalar Nginx ni Certbot en este servidor para esta web.
 
-## 1. DNS
+## Datos comprobados
 
-En la zona DNS de `consultoriadigital.io`, crear un registro **A** con nombre `bienestar`, valor `72.60.15.125` y TTL `300`. Esta dirección coincide con la IPv4 del VPS mostrada en el panel de Hostinger. Pulsar **Agregar registro** y esperar a que `dig +short bienestar.consultoriadigital.io` devuelva esa dirección. Esta pantalla configura el dominio; los archivos de la web se instalan en el VPS en el paso siguiente.
+- DNS A: `bienestar.consultoriadigital.io` → `72.60.15.125`.
+- Puerto `3104`: libre en el diagnóstico del 23/10/2026. Volver a verificarlo justo antes de iniciar.
+- Red de Traefik: `n8n_default`; puerta de enlace del host `172.18.0.1`.
+- Proveedor de archivos Traefik: `/docker/n8n/dynamic`, montado en `/etc/traefik/dynamic`, con observación de cambios activa.
+- Resolver TLS existente: `mytlschallenge`.
 
-## 2. Código y PM2
+## 1. Comprobar antes de instalar
+
+Ejecutar como `root` en el VPS:
 
 ```bash
-sudo mkdir -p /srv/bienestar
-sudo chown "$USER":"$USER" /srv/bienestar
-git clone https://github.com/facndo12/BienEstar.git /srv/bienestar
-cd /srv/bienestar
-node --version
-npm --version
-sudo npm install -g pm2
-pm2 start ecosystem.config.cjs
-pm2 status
-curl -I http://127.0.0.1:3104/
-pm2 startup
+ss -H -ltnp '( sport = :3104 )'
+docker ps -aq | xargs -r docker inspect --format '{{.Name}} {{json .HostConfig.PortBindings}}' | grep -F '"HostPort":"3104"' || true
+find /docker/n8n/dynamic -maxdepth 1 -type f -printf '%f\n'
+grep -R -nE 'bienestar\.consultoriadigital\.io|bienestar-landing|172\.18\.0\.1:3104' /docker/n8n/dynamic || true
+ip -br addr | grep -F '172.18.0.1'
 ```
 
-Ejecutar el comando `sudo ...` que imprime `pm2 startup`. Luego:
+Si aparece un ocupante del puerto, un router BienEstar existente o falta `172.18.0.1`, detenerse y revisar antes de continuar.
+
+## 2. Instalar y probar la web sin tocar Traefik
+
+Si `/var/www/bienestar` todavía no existe:
 
 ```bash
+cd /var/www
+git clone https://github.com/facndo12/BienEstar.git bienestar
+cd /var/www/bienestar
+node --check dev-server.js
+pm2 start ecosystem.config.cjs
+pm2 status bienestar
+curl -I --max-time 5 http://172.18.0.1:3104/
+```
+
+El `curl` debe responder `HTTP/1.1 200 OK`. El servidor escucha solo en la puerta de enlace interna de Docker, no en la IP pública.
+
+## 3. Agregar una ruta aislada a Traefik
+
+Primero comprobar que el archivo de destino no exista:
+
+```bash
+ls -l /docker/n8n/dynamic/bienestar-landing.yml
+```
+
+Si `ls` indica que **no existe** y las verificaciones anteriores fueron correctas, agregar el archivo nuevo:
+
+```bash
+install -m 0644 /var/www/bienestar/deploy/traefik-bienestar.yml /docker/n8n/dynamic/bienestar-landing.yml
+```
+
+Traefik observa ese directorio y carga el nuevo router sin reiniciar el contenedor ni editar rutas existentes. Comprobar la respuesta:
+
+```bash
+curl -I --max-time 15 https://bienestar.consultoriadigital.io/
+docker logs --since 5m n8n-traefik-1 2>&1 | grep -iE 'bienestar|error|acme' | tail -n 30
+```
+
+El certificado se obtiene mediante el resolver TLS de Traefik ya configurado. No usar Certbot para este sitio.
+
+## 4. Persistencia y futuras actualizaciones
+
+Después de verificar HTTPS, respaldar el estado previo de PM2 antes de guardar la lista actual:
+
+```bash
+if [ -f /root/.pm2/dump.pm2 ]; then cp -a /root/.pm2/dump.pm2 "/root/.pm2/dump.pm2.before-bienestar-$(date +%Y%m%d-%H%M%S)"; fi
 pm2 save
 ```
 
-La aplicación escucha solo en `127.0.0.1:3104`; Nginx será el punto de acceso público. Si el puerto 3104 ya está ocupado, cambiar `PORT` en `ecosystem.config.cjs` y `proxy_pass` en la configuración de Nginx.
-
-## 3. Nginx
-
-Si Nginx no está instalado: `sudo apt update && sudo apt install -y nginx`.
+Para actualizar solo esta web:
 
 ```bash
-sudo cp /srv/bienestar/deploy/nginx-bienestar.conf /etc/nginx/sites-available/bienestar
-sudo ln -s /etc/nginx/sites-available/bienestar /etc/nginx/sites-enabled/bienestar
-sudo nginx -t
-sudo systemctl reload nginx
-curl -I http://bienestar.consultoriadigital.io/
-```
-
-Si el enlace ya existe, no repetir `ln -s`. Los puertos 80 y 443 deben estar abiertos en el firewall del servidor y del proveedor.
-
-## 4. HTTPS
-
-Hacerlo cuando el registro A ya resuelva hacia el servidor y HTTP funcione. Seguir las [instrucciones actuales de Certbot para Nginx](https://certbot.eff.org/instructions?ws=nginx&os=snap). Con Certbot instalado:
-
-```bash
-sudo certbot --nginx -d bienestar.consultoriadigital.io
-sudo certbot renew --dry-run
-curl -I https://bienestar.consultoriadigital.io/
-```
-
-## Actualizaciones
-
-```bash
-cd /srv/bienestar
+cd /var/www/bienestar
 git pull --ff-only origin main
 pm2 restart bienestar
-pm2 status
+curl -I --max-time 5 http://172.18.0.1:3104/
 ```
+
+No usar `pm2 restart all` ni reiniciar Traefik para publicar BienEstar.

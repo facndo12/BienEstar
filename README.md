@@ -22,6 +22,6 @@ Abrir `http://localhost:5173/`. No hace falta instalar dependencias.
 
 ## Publicación provisoria
 
-La configuración de PM2, Nginx y los pasos para el subdominio provisorio están en [DEPLOY.md](DEPLOY.md).
+La configuración de PM2, Traefik y los pasos para el subdominio provisorio están en [DEPLOY.md](DEPLOY.md).
 
 Antes de publicar, confirmar la dirección exacta en Maps y recibir los textos de política de privacidad, términos y aviso legal. El brief no incluye esos documentos.
